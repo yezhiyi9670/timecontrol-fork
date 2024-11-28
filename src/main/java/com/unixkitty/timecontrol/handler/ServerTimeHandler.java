@@ -44,7 +44,8 @@ public final class ServerTimeHandler extends TimeHandler
     private static final String set_string = "set";
 
     /* System time */
-    private int lastMinute = 0;
+    private int lastMinute = -1;
+    private int lastSecond = -1;
 
     /* Arbitrary time */
     private boolean wasDaytime = true;
@@ -65,7 +66,10 @@ public final class ServerTimeHandler extends TimeHandler
             {
                 if (!serverLevel.isClientSide && serverLevel.getServer().getTickCount() % Config.sync_to_system_time_rate.get() == 0)
                 {
-                    syncTimeWithSystem(serverLevel);
+                    if(serverLevel.getGameRules().getBoolean(TimeControl.DO_DAYLIGHT_CYCLE_TC)) {
+                        syncTimeWithSystem(serverLevel);
+                    }
+                    ModNetworkDispatcher.send(new GamerulesS2CPacket(serverLevel), serverLevel.dimension());
                 }
             }
             else
@@ -160,8 +164,9 @@ public final class ServerTimeHandler extends TimeHandler
     {
         LocalDateTime now = LocalDateTime.now();
         int minute = now.getMinute();
+        int second = now.getSecond();
 
-        if (minute != this.lastMinute)
+        if (minute != this.lastMinute || second != this.lastSecond)
         {
             long worldTime = level.getDayTime();
             int hour = now.getHour();
@@ -170,26 +175,26 @@ public final class ServerTimeHandler extends TimeHandler
             final int _day = day;
             final int _hour = hour;
             final int _minute = minute;
+            final int _second = second;
 
             double timeOffset = Config.sync_to_system_time_offset.get();
 
             if (timeOffset != 0)
             {
-                int offsetMinutes = (int) (timeOffset * 60);
-                LocalDateTime adjustedDateTime = now.plusMinutes(offsetMinutes);
+                int offsetSeconds = (int) (timeOffset * 3600);
+                LocalDateTime adjustedDateTime = now.plusSeconds(offsetSeconds);
 
-                if (adjustedDateTime.getDayOfYear() != day)
-                {
-                    day = adjustedDateTime.getDayOfYear();
-                }
+                day = adjustedDateTime.getDayOfYear();
 
                 hour = adjustedDateTime.getHour();
                 minute = adjustedDateTime.getMinute();
+                second = adjustedDateTime.getSecond();
             }
 
-            long time = Numbers.getSystemtimeTicks(hour, minute, day);
+            long time = Numbers.getSystemtimeTicks(hour, minute, second, day);
 
             this.lastMinute = _minute;
+            this.lastSecond = _second;
 
             level.setDayTime(time);
 
@@ -197,8 +202,8 @@ public final class ServerTimeHandler extends TimeHandler
             {
                 log.debug("System time update: {} -> {} | day {}, {} | system: day {}, {}, offset: {}",
                         worldTime, time,
-                        day, String.format("%02d:%02d", hour, minute),
-                        _day, String.format("%02d:%02d", _hour, _minute),
+                        day, String.format("%02d:%02d:%02d", hour, minute, second),
+                        _day, String.format("%02d:%02d:%02d", _hour, _minute, _second),
                         timeOffset);
             }
         }
@@ -253,7 +258,7 @@ public final class ServerTimeHandler extends TimeHandler
 
                 if (!action.equals(set_string) && !action.equals(add_string)) return;
 
-                if (Config.sync_to_system_time.get())
+                if (Config.sync_to_system_time.get() && level.getGameRules().getBoolean(TimeControl.DO_DAYLIGHT_CYCLE_TC))
                 {
                     sender.sendFailure(new CommandRuntimeException(Component.translatable("commands.timecontrol.change_time_when_system", action, time_string)).getComponent());
                     event.setCanceled(true);

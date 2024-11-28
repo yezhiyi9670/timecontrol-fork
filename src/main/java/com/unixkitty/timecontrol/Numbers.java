@@ -26,6 +26,7 @@ public class Numbers
     private static final int real_life_minute_is_ticks = real_life_second_is_ticks * 60;
     private static final double vanilla_multiplier = HALF_DAY_TICKS / (double) real_life_second_is_ticks;
     private static final double real_life_minute_multiplier = real_life_minute_is_ticks / 72.0D; //Minecraft "time" is 72 times faster than IRL: 1440 IRL minutes / 20 (length of a Mineraft day in minutes)
+    private static final double real_life_second_multiplier = real_life_minute_is_ticks / 72.0D / 60.0D;
 
     static
     {
@@ -103,11 +104,12 @@ public class Numbers
         return l >= 0 && l < HALF_DAY_TICKS;
     }
 
-    public static long getSystemtimeTicks(int hour, int minute, int day)
+    public static long getSystemtimeTicks(int hour, int minute, int second, int day)
     {
-        hour = (hour - real_life_hour_offset + hours_per_day) % hours_per_day * ticks_per_hour;
-        minute = (int) Math.round(minute * real_life_minute_multiplier % ticks_per_hour);
+        double hourTicks = (hour - real_life_hour_offset + hours_per_day) % hours_per_day * ticks_per_hour;
+        double minuteTicks = minute * real_life_minute_multiplier;
+        double secondTicks = second * real_life_second_multiplier;
 
-        return (hour + minute) + (day * DAY_TICKS);
+        return (int)Math.round(hourTicks + minuteTicks + secondTicks) + (day * DAY_TICKS);
     }
 }
